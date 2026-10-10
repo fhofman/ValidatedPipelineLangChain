@@ -1,0 +1,4 @@
+pydantic
+langchain-core
+langchain-openai
+langchain-anthropic
