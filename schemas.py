@@ -38,20 +38,18 @@ class IdentityChangeLog(BaseModel):
     datetime: AwareDatetime
 
     def to_llm(self) -> dict:
-        """Lo que se manda al LLM: los DNI van como hash, nunca en claro."""
+        """Lo que se manda al LLM: misma estructura del log, pero los DNI van como hash, nunca en claro.
+
+        `extra` queda afuera: en Monolog ahí suelen ir IP, URL o user agent, que no se validan.
+        """
         def mask(v: str) -> str:
             return "id_" + hashlib.sha256(v.encode()).hexdigest()[:8]
 
-        return {
-            "event": self.message,
-            "datetime": self.datetime.isoformat(),
-            "level": self.level,
-            "level_name": self.level_name,
-            "channel": self.channel,
-            "customer_id": self.context.customer_id,
-            "current_identity": mask(self.context.current_identity_number),
-            "requested_identity": mask(self.context.requested_identity_number),
-        }
+        data = self.model_dump(mode="json")
+        ctx = data["context"]
+        ctx["current_identity_number"] = mask(ctx["current_identity_number"])
+        ctx["requested_identity_number"] = mask(ctx["requested_identity_number"])
+        return data
 
 
 # --- Salida: análisis del LLM ---
@@ -71,7 +69,7 @@ class Accion(str, Enum):
 class AnalisisTecnico(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    tecnologias: list[str] = Field(description="Tecnologías identificadas en el log (framework, librería de logging, infraestructura)")
+    tecnologias: list[str] = Field(description="Nombres concretos de productos, lenguajes o librerías inferibles del log (ej. Monolog, PHP). Lista vacía si no hay ninguno identificable")
     nivel_de_criticidad: NivelCriticidad
     resumen_tecnico: str = Field(min_length=10, max_length=1000, description="Qué pasó y por qué importa, en pocas oraciones")
     accion: Accion
